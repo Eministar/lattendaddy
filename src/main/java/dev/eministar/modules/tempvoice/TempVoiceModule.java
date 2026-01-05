@@ -36,7 +36,10 @@ public class TempVoiceModule extends ListenerAdapter {
     private final Map<String, String> ownerToChannel = new ConcurrentHashMap<>();
     private final Map<String, TempVoiceSettings> channelSettings = new ConcurrentHashMap<>();
     private final Map<String, ScheduledFuture<?>> deleteTasks = new ConcurrentHashMap<>();
+    private final Map<String, String> channelToGuild = new ConcurrentHashMap<>(); // channelId -> guildId
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+
+    private net.dv8tion.jda.api.JDA jda;
 
     private boolean enabled;
     private String sourceChannelId;
@@ -47,6 +50,10 @@ public class TempVoiceModule extends ListenerAdapter {
 
     public TempVoiceModule() {
         loadConfig();
+    }
+
+    public void setJDA(net.dv8tion.jda.api.JDA jda) {
+        this.jda = jda;
     }
 
     private void loadConfig() {
@@ -137,8 +144,14 @@ public class TempVoiceModule extends ListenerAdapter {
                 .queue();
 
             ownerToChannel.put(owner.getId(), tempChannel.getId());
+            channelToGuild.put(tempChannel.getId(), guild.getId());
             TempVoiceSettings settings = new TempVoiceSettings(defaultMaxMembers, defaultBitrateKbps);
             channelSettings.put(tempChannel.getId(), settings);
+
+            // Store JDA reference if not yet set
+            if (this.jda == null) {
+                this.jda = guild.getJDA();
+            }
 
             guild.moveVoiceMember(owner, tempChannel).queue(
                 success -> {
@@ -415,16 +428,33 @@ public class TempVoiceModule extends ListenerAdapter {
     }
 
     private void deleteTempChannel(String channelId) {
-        channelSettings.remove(channelId);
+        // First remove from tracking
         String ownerId = getChannelOwner(channelId);
+        String guildId = channelToGuild.remove(channelId);
 
         if (ownerId != null) {
             ownerToChannel.remove(ownerId);
         }
 
+        channelSettings.remove(channelId);
         deleteTasks.remove(channelId);
 
-        logger.info("Deleting temp channel {}", channelId);
+        // Actually delete the Discord voice channel
+        if (jda != null && guildId != null) {
+            Guild guild = jda.getGuildById(guildId);
+            if (guild != null) {
+                VoiceChannel channel = guild.getVoiceChannelById(channelId);
+                if (channel != null) {
+                    channel.delete().queue(
+                        success -> logger.info("Deleted temp channel {}", channelId),
+                        error -> logger.warn("Failed to delete temp channel {}: {}", channelId, error.getMessage())
+                    );
+                    return;
+                }
+            }
+        }
+
+        logger.info("Cleaned up tracking for temp channel {} (channel may already be deleted)", channelId);
     }
 
     private boolean isOwnedTempChannel(String channelId) {

@@ -1,4 +1,4 @@
-package dev.eministar.modules.giveaway.v2;
+package dev.eministar.modules.giveaway;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

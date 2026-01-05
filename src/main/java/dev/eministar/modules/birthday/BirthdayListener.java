@@ -4,6 +4,9 @@ import dev.eministar.config.Config;
 import dev.eministar.util.EmojiUtil;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
@@ -35,17 +38,21 @@ public class BirthdayListener extends ListenerAdapter {
         }
     }
 
+    // Timezone for birthday checks - Europe/Berlin for German server
+    private static final java.time.ZoneId TIMEZONE = java.time.ZoneId.of("Europe/Berlin");
+
     // Public start so we can call it if needed
     public void start(JDA jda) {
-        long initialDelay = computeInitialDelaySeconds();
+        // Schedule to run exactly at midnight in configured timezone, and every 24h after
+        long initialDelay = computeSecondsUntilMidnight();
         scheduler.scheduleAtFixedRate(() -> runDaily(jda), initialDelay, 24 * 60 * 60, TimeUnit.SECONDS);
-        logger.info("Geburtstags-Checker gestartet. Nächste Prüfung in {} Sekunden.", initialDelay);
+        logger.info("Geburtstags-Checker gestartet. Nächste Prüfung um Mitternacht ({}), in {} Sekunden.", TIMEZONE, initialDelay);
     }
 
-    private long computeInitialDelaySeconds() {
-        LocalDate now = LocalDate.now(java.time.Clock.systemUTC());
-        LocalDate tomorrow = now.plusDays(1);
-        long secondsUntilMidnight = java.time.Duration.between(java.time.Instant.now(), tomorrow.atStartOfDay(java.time.ZoneOffset.UTC).toInstant()).getSeconds();
+    private long computeSecondsUntilMidnight() {
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(TIMEZONE);
+        java.time.ZonedDateTime nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay(TIMEZONE);
+        long secondsUntilMidnight = java.time.Duration.between(now, nextMidnight).getSeconds();
         return Math.max(5, secondsUntilMidnight);
     }
 
@@ -53,6 +60,9 @@ public class BirthdayListener extends ListenerAdapter {
         try {
             for (var guild : jda.getGuilds()) {
                 String guildId = guild.getId();
+                // First remove birthday role from everyone who had it yesterday
+                removeBirthdayRoleFromAll(guild);
+                // Then check and assign for today's birthdays
                 checkGuildBirthdays(guildId, jda);
             }
         } catch (Exception e) {
@@ -60,11 +70,40 @@ public class BirthdayListener extends ListenerAdapter {
         }
     }
 
+    private void removeBirthdayRoleFromAll(Guild guild) {
+        String roleId = Config.getBirthdayRoleId();
+        if (roleId.isEmpty()) return;
+
+        Role birthdayRole = guild.getRoleById(roleId);
+        if (birthdayRole == null) {
+            logger.warn("Birthday role not found: {}", roleId);
+            return;
+        }
+
+        // Remove role from all members who have it
+        guild.findMembersWithRoles(birthdayRole).onSuccess(members -> {
+            for (Member member : members) {
+                guild.removeRoleFromMember(member, birthdayRole).queue(
+                    success -> logger.debug("Removed birthday role from {}", member.getEffectiveName()),
+                    error -> logger.warn("Failed to remove birthday role from {}: {}", member.getEffectiveName(), error.getMessage())
+                );
+            }
+        });
+    }
+
     private void checkGuildBirthdays(String guildId, JDA jda) {
         Map<String, BirthdayService.BirthdayEntry> all = BirthdayService.getAllBirthdays(guildId);
         if (all.isEmpty()) return;
-        LocalDate today = LocalDate.now(java.time.Clock.systemUTC());
+        LocalDate today = LocalDate.now(TIMEZONE);
         String isoToday = today.toString(); // yyyy-MM-dd
+
+        Guild guild = jda.getGuildById(guildId);
+        if (guild == null) return;
+
+        // Get birthday role if configured
+        String roleId = Config.getBirthdayRoleId();
+        Role birthdayRole = roleId.isEmpty() ? null : guild.getRoleById(roleId);
+
         for (var e : all.entrySet()) {
             String userId = e.getKey();
             BirthdayService.BirthdayEntry b = e.getValue();
@@ -74,6 +113,7 @@ public class BirthdayListener extends ListenerAdapter {
                 TextChannel ch = resolveCongratsChannel(jda, guildId);
                 if (ch == null) continue;
                 final String finalGuildId = guildId;
+                final Role finalBirthdayRole = birthdayRole;
                 jda.retrieveUserById(userId).queue(user -> {
                     String mention = user.getAsMention();
                     EmbedBuilder eb = new EmbedBuilder();
@@ -100,6 +140,16 @@ public class BirthdayListener extends ListenerAdapter {
                         // store last sent id + date
                         BirthdayService.setLastCongrats(finalGuildId, userId, msg.getId(), isoToday);
                     });
+
+                    // Assign birthday role if configured
+                    if (finalBirthdayRole != null) {
+                        guild.retrieveMemberById(userId).queue(member -> {
+                            guild.addRoleToMember(member, finalBirthdayRole).queue(
+                                success -> logger.info("Assigned birthday role to {} for their birthday", member.getEffectiveName()),
+                                error -> logger.warn("Failed to assign birthday role to {}: {}", member.getEffectiveName(), error.getMessage())
+                            );
+                        }, error -> logger.warn("Could not find member {} for birthday role", userId));
+                    }
                 });
             }
         }

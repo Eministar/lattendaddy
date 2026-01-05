@@ -83,6 +83,8 @@ public class Config {
         config.addProperty("dpqPingRoleId", "");
         config.addProperty("dpqTeamRoleId", "");
         config.addProperty("dpqQaUrl", "");
+        // new: role for current DPQ leaders
+        config.addProperty("dpqWinnerRoleId", "");
 
         try {
             Files.createDirectories(CONFIG_PATH.getParent());
@@ -227,6 +229,7 @@ public class Config {
         if (!root.has("goodbyeChannelId")) { root.addProperty("goodbyeChannelId", ""); changed = true; }
         if (!root.has("birthdayCongratsChannelId")) { root.addProperty("birthdayCongratsChannelId", ""); changed = true; }
         if (!root.has("birthdayListChannelId")) { root.addProperty("birthdayListChannelId", ""); changed = true; }
+        if (!root.has("birthdayRoleId")) { root.addProperty("birthdayRoleId", ""); changed = true; }
         if (!root.has("ticketLogChannelId")) { root.addProperty("ticketLogChannelId", ""); changed = true; }
         if (!root.has("suggestionChannelId")) { root.addProperty("suggestionChannelId", ""); changed = true; }
 
@@ -302,6 +305,7 @@ public class Config {
         if (!root.has("dpqPingRoleId")) { root.addProperty("dpqPingRoleId", ""); changed = true; }
         if (!root.has("dpqTeamRoleId")) { root.addProperty("dpqTeamRoleId", ""); changed = true; }
         if (!root.has("dpqQaUrl")) { root.addProperty("dpqQaUrl", ""); changed = true; }
+        if (!root.has("dpqWinnerRoleId")) { root.addProperty("dpqWinnerRoleId", ""); changed = true; }
 
         if (!root.has("database") || root.get("database").isJsonNull()) {
             JsonObject db = new JsonObject();
@@ -371,6 +375,10 @@ public class Config {
 
     public static String getBirthdayListChannelId() {
         return root.has("birthdayListChannelId") ? root.get("birthdayListChannelId").getAsString() : "";
+    }
+
+    public static String getBirthdayRoleId() {
+        return root.has("birthdayRoleId") ? root.get("birthdayRoleId").getAsString() : "";
     }
 
     public static String getTicketLogChannelId() {
@@ -520,4 +528,5 @@ public class Config {
     public static String getDpqPingRoleId() { return root.has("dpqPingRoleId") ? root.get("dpqPingRoleId").getAsString() : ""; }
     public static String getDpqTeamRoleId() { return root.has("dpqTeamRoleId") ? root.get("dpqTeamRoleId").getAsString() : ""; }
     public static String getDpqQaUrl() { return root.has("dpqQaUrl") ? root.get("dpqQaUrl").getAsString() : ""; }
+    public static String getDpqWinnerRoleId() { return root.has("dpqWinnerRoleId") ? root.get("dpqWinnerRoleId").getAsString() : ""; }
 }

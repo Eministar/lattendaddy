@@ -1,6 +1,5 @@
-package dev.eministar.modules.giveaway.v2;
+package dev.eministar.modules.giveaway;
 
-import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 

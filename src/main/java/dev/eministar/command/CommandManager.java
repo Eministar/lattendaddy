@@ -25,15 +25,16 @@ public class CommandManager extends ListenerAdapter {
 
     public void register(Command cmd) {
         commands.put(cmd.name().toLowerCase(), cmd);
+        logger.debug("Command registriert: {}", cmd.name());
     }
 
     public void registerToJda(JDA jda) {
-        // Manager is already registered via builder.addEventListeners()
-        // So we don't need jda.addEventListener(this) here anymore!
+        logger.info("Registriere {} Commands...", commands.size());
 
         var slashCommands = commands.values().stream()
                 .map(cmd -> {
                     CommandData data = cmd.getSlashCommandData();
+                    logger.debug("Command '{}' hat SlashCommandData: {}", cmd.name(), data != null);
                     return data != null ? data : Commands.slash(cmd.name(), cmd.description());
                 })
                 .toList();
@@ -74,9 +75,21 @@ public class CommandManager extends ListenerAdapter {
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
+        logger.info("Slash Command empfangen: {} von User {}", event.getName(), event.getUser().getName());
         Command cmd = commands.get(event.getName().toLowerCase());
         if (cmd != null) {
-            cmd.executeSlash(event.getInteraction());
+            try {
+                logger.debug("Führe Command aus: {}", event.getName());
+                cmd.executeSlash(event.getInteraction());
+            } catch (Exception e) {
+                logger.error("Fehler beim Ausführen von Command '{}': {}", event.getName(), e.getMessage(), e);
+                if (!event.isAcknowledged()) {
+                    event.reply("❌ Ein Fehler ist aufgetreten: " + e.getMessage()).setEphemeral(true).queue();
+                }
+            }
+        } else {
+            logger.warn("Unbekannter Command: {} - Verfügbare Commands: {}", event.getName(), commands.keySet());
+            event.reply("❌ Unbekannter Command!").setEphemeral(true).queue();
         }
     }
 }

@@ -126,5 +126,79 @@ public class TicketService {
                 .filter(t -> t.getUserId().equals(userId))
                 .toList();
     }
-}
 
+    public static List<Ticket> getAllTickets(String guildId) {
+        return new ArrayList<>(tickets.getOrDefault(guildId, new ConcurrentHashMap<>()).values());
+    }
+
+    public static List<Ticket> getClosedTickets(String guildId) {
+        return tickets.getOrDefault(guildId, new ConcurrentHashMap<>()).values().stream()
+                .filter(t -> t.getStatus() == Ticket.TicketStatus.CLOSED)
+                .toList();
+    }
+
+    /**
+     * Get count of tickets closed today
+     */
+    public static int getTicketsClosedToday(String guildId) {
+        long startOfDay = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Berlin"))
+                .atStartOfDay(java.time.ZoneId.of("Europe/Berlin"))
+                .toInstant().toEpochMilli();
+
+        return (int) tickets.getOrDefault(guildId, new ConcurrentHashMap<>()).values().stream()
+                .filter(t -> t.getStatus() == Ticket.TicketStatus.CLOSED)
+                .filter(t -> t.getClosedAt() >= startOfDay)
+                .count();
+    }
+
+    /**
+     * Get total count of all closed tickets (alltime)
+     */
+    public static int getTicketsClosedAllTime(String guildId) {
+        return (int) tickets.getOrDefault(guildId, new ConcurrentHashMap<>()).values().stream()
+                .filter(t -> t.getStatus() == Ticket.TicketStatus.CLOSED)
+                .count();
+    }
+
+    /**
+     * Get count of tickets claimed by a specific user today
+     */
+    public static int getTicketsClaimedTodayByUser(String guildId, String userId) {
+        long startOfDay = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Berlin"))
+                .atStartOfDay(java.time.ZoneId.of("Europe/Berlin"))
+                .toInstant().toEpochMilli();
+
+        return (int) tickets.getOrDefault(guildId, new ConcurrentHashMap<>()).values().stream()
+                .filter(t -> t.getStatus() == Ticket.TicketStatus.CLOSED)
+                .filter(t -> userId.equals(t.getClaimedBy()))
+                .filter(t -> t.getClosedAt() >= startOfDay)
+                .count();
+    }
+
+    /**
+     * Get total count of tickets claimed by a specific user (alltime)
+     */
+    public static int getTicketsClaimedAllTimeByUser(String guildId, String userId) {
+        return (int) tickets.getOrDefault(guildId, new ConcurrentHashMap<>()).values().stream()
+                .filter(t -> t.getStatus() == Ticket.TicketStatus.CLOSED)
+                .filter(t -> userId.equals(t.getClaimedBy()))
+                .count();
+    }
+
+    /**
+     * Get average ticket close time in minutes (alltime)
+     */
+    public static long getAverageCloseTimeMinutes(String guildId) {
+        var closedTickets = tickets.getOrDefault(guildId, new ConcurrentHashMap<>()).values().stream()
+                .filter(t -> t.getStatus() == Ticket.TicketStatus.CLOSED && t.getClosedAt() > 0)
+                .toList();
+
+        if (closedTickets.isEmpty()) return 0;
+
+        long totalMinutes = closedTickets.stream()
+                .mapToLong(t -> (t.getClosedAt() - t.getCreatedAt()) / (1000 * 60))
+                .sum();
+
+        return totalMinutes / closedTickets.size();
+    }
+}

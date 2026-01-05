@@ -1,0 +1,7 @@
+node_modules/
+.idea
+target
+*.log
+dependency-reduced-pom.xml
+.mvn
+data/

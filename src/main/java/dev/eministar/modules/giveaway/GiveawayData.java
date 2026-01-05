@@ -1,4 +1,4 @@
-package dev.eministar.modules.giveaway.v2;
+package dev.eministar.modules.giveaway;
 
 import java.time.Instant;
 import java.util.HashMap;

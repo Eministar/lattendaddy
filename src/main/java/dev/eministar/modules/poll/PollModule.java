@@ -200,48 +200,75 @@ public class PollModule extends ListenerAdapter implements Command {
     private EmbedBuilder buildPollEmbed(PollData poll) {
         EmbedBuilder embed = new EmbedBuilder();
         embed.setTitle("📊 " + poll.title);
-        embed.setColor(Color.decode("#5865F2"));
+
+        // Dynamic color based on status
+        if (poll.isClosed()) {
+            embed.setColor(new Color(0x57F287)); // Green for closed
+        } else {
+            embed.setColor(new Color(0x5865F2)); // Blue for active
+        }
 
         StringBuilder desc = new StringBuilder();
 
+        // Header separator
+        desc.append("━━━━━━━━━━━━━━━━━━━━\n\n");
+
         if (poll.description != null && !poll.description.isEmpty()) {
-            desc.append(poll.description).append("\n\n");
+            desc.append("*").append(poll.description).append("*\n\n");
         }
 
-        desc.append("**📋 Modus:** ");
+        // Poll mode info
+        desc.append("📋 **Modus:** ");
         if (poll.multi.enabled) {
             desc.append("Multi-Choice (max ").append(poll.multi.maxChoices).append(")");
         } else {
             desc.append("Single-Choice");
         }
-        desc.append(poll.anonymous ? " · Anonym" : " · Öffentlich");
+        desc.append(poll.anonymous ? " • 🔒 Anonym" : " • 👁️ Öffentlich");
         desc.append("\n\n");
 
         boolean showStats = "live".equals(poll.visibility) || poll.isClosed();
         int totalVotes = poll.getTotalVotes();
 
+        // Options with progress bars
+        desc.append("━━━━━━━━━━━━━━━━━━━━\n\n");
+
         for (PollData.PollOption option : poll.options) {
             int votes = poll.totals.getOrDefault(option.id, 0);
-            desc.append(PercentBarRenderer.formatOptionLine(
-                option.id + ": " + option.label,
-                votes,
-                totalVotes,
-                showStats
-            )).append("\n\n");
+            double percent = totalVotes > 0 ? (double) votes / totalVotes * 100 : 0;
+
+            // Option header
+            desc.append("**").append(option.id).append(": ").append(option.label).append("**\n");
+
+            if (showStats) {
+                // Progress bar
+                int filledBlocks = (int) Math.round(percent / 10);
+                desc.append("```\n");
+                desc.append("[");
+                for (int i = 0; i < 10; i++) {
+                    desc.append(i < filledBlocks ? "█" : "░");
+                }
+                desc.append("] ").append(String.format("%5.1f%%", percent));
+                desc.append(" (").append(votes).append(")\n");
+                desc.append("```\n");
+            } else {
+                desc.append("```\n[░░░░░░░░░░] ???%\n```\n");
+            }
         }
 
+        // Footer stats
         desc.append("━━━━━━━━━━━━━━━━━━━━\n");
-        desc.append("**📊 Gesamt:** ").append(totalVotes).append(" Stimmen\n");
+        desc.append("📊 **Gesamt:** ").append(totalVotes).append(" Stimmen\n");
 
         if (!poll.isClosed()) {
             Duration remaining = Duration.between(Instant.now(), poll.getEndsAtInstant());
-            desc.append("**⏰ Endet in:** ").append(PollTimeParser.formatRemaining(remaining));
+            desc.append("⏰ **Endet:** <t:").append(poll.getEndsAtInstant().getEpochSecond()).append(":R>");
         } else {
-            desc.append("**✅ Status:** Beendet");
+            desc.append("✅ **Status:** Beendet");
         }
 
         embed.setDescription(desc.toString());
-        embed.setFooter("Poll-ID: " + poll.id, null);
+        embed.setFooter("Poll-ID: " + poll.id + " • Erstellt von User", null);
         embed.setTimestamp(poll.getEndsAtInstant());
 
         return embed;

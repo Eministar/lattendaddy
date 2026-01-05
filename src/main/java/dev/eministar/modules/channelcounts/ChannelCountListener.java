@@ -87,10 +87,8 @@ public class ChannelCountListener extends ListenerAdapter {
                 .filter(m -> isConsideredOnline(m.getOnlineStatus()))
                 .count();
 
-        String onlineName = "🌐・" + onlineMembers + " ᴏɴʟɪɴᴇ ᴍᴇᴍʙᴇʀ";
-        String memberName = "🔥・" + totalMembers + " ᴍᴇᴍʙᴇʀ";
+        String memberName = "\uD83D\uDD25 〢" + totalMembers + " ᴍᴇᴍʙᴇʀ";
 
-        if (onlineId != null && !onlineId.isEmpty()) renameById(guild, onlineId, onlineName);
         if (memberId != null && !memberId.isEmpty()) renameById(guild, memberId, memberName);
     }
 
